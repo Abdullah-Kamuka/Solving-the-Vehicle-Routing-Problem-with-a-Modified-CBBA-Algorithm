@@ -1,0 +1,86 @@
+import numpy as np
+from collections import defaultdict
+import matplotlib.pyplot as plt
+
+# Example node coordinates (depot + customers)
+nodes = {
+    0: (50, 50),  # Depot
+    1: (30, 70),
+    2: (60, 20),
+    3: (80, 60),
+    4: (20, 40)
+}
+
+# Distance matrix
+def euclidean(a, b):
+    return np.linalg.norm(np.array(a) - np.array(b))
+
+dist_matrix = {
+    i: {j: euclidean(nodes[i], nodes[j]) for j in nodes}
+    for i in nodes
+}
+
+# Parameters
+num_agents = 2
+agents = [f"Vehicle_{i}" for i in range(num_agents)]
+capacity = 3
+
+# Initialization
+bids = {agent: {} for agent in agents}
+assignments = defaultdict(list)
+task_status = {task: None for task in nodes if task != 0}  # Exclude depot
+
+# Step 1: Bidding phase
+for task in task_status:
+    task_best_bid = float('inf')
+    best_agent = None
+
+    for agent in agents:
+        if len(assignments[agent]) >= capacity:
+            continue
+
+        last_node = 0 if not assignments[agent] else assignments[agent][-1]
+        cost = dist_matrix[last_node][task]
+
+        # Store bids
+        bids[agent][task] = cost
+
+        # Find best bidder
+        if cost < task_best_bid:
+            task_best_bid = cost
+            best_agent = agent
+
+    # Assign to best bidder
+    if best_agent is not None:
+        assignments[best_agent].append(task)
+        task_status[task] = best_agent
+
+# Step 2: Consensus check (naive agreement)
+# If task assigned to multiple, keep the lowest cost
+for task in task_status:
+    competing_bids = {agent: bids[agent].get(task, float('inf')) for agent in agents}
+    winner = min(competing_bids, key=competing_bids.get)
+
+    # Remove task from all others
+    for agent in agents:
+        if task in assignments[agent] and agent != winner:
+            assignments[agent].remove(task)
+
+# Output
+for agent, route in assignments.items():
+    print(f"{agent}'s Route: Depot -> {' -> '.join(map(str, route))} -> Depot")
+
+# Optional: Plotting routes
+colors = ['r', 'b', 'g', 'm']
+for idx, (agent, route) in enumerate(assignments.items()):
+    x = [nodes[0][0]] + [nodes[t][0] for t in route] + [nodes[0][0]]
+    y = [nodes[0][1]] + [nodes[t][1] for t in route] + [nodes[0][1]]
+    plt.plot(x, y, marker='o', label=agent, color=colors[idx % len(colors)])
+
+for i, coord in nodes.items():
+    plt.text(coord[0]+1, coord[1]+1, f"{i}")
+
+plt.title("Vehicle Routes (Modified CBBA)")
+plt.legend()
+plt.grid(True)
+plt.show()
